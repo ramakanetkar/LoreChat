@@ -1,0 +1,76 @@
+body {
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  color: #f1f1f1;
+  font-family: 'Roboto', sans-serif;
+}
+
+h2, h3, h4 {
+  font-family: 'Montserrat', sans-serif;
+  color: #00e6ff;
+}
+
+.navbar {
+  background: linear-gradient(90deg, #141E30, #243B55);
+}
+
+.nav-link {
+  color: #f1f1f1 !important;
+  transition: 0.3s;
+}
+.nav-link:hover {
+  color: #00e6ff !important;
+  text-shadow: 0 0 10px #00e6ff;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: 15px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  color: #f1f1f1;
+  transition: transform 0.2s;
+}
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+}
+
+.btn {
+  border-radius: 30px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+.btn-primary {
+  background: linear-gradient(90deg, #00c6ff, #0072ff);
+  border: none;
+}
+.btn-success {
+  background: linear-gradient(90deg, #43e97b, #38f9d7);
+  border: none;
+}
+.btn-secondary {
+  background: linear-gradient(90deg, #ff512f, #dd2476);
+  border: none;
+}
+.btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 20px rgba(0, 230, 255, 0.7);
+}
+
+.table {
+  color: #f1f1f1;
+}
+.table thead {
+  background: rgba(0, 230, 255, 0.2);
+}
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.chat-box {
+  background: rgba(0,0,0,0.5);
+  border-radius: 15px;
+  padding: 15px;
+  color: #f1f1f1;
+}
