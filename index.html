@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoreChat - Home</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='base.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 LoreChat</h1>
+            <p class="tagline">Step into the wizarding world — Chat with Harry Potter characters using AI</p>
+        </header>
+
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            <div class="flash-messages">
+              <ul>
+                {% for msg in messages %}
+                  <li>{{ msg }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        <!-- Chat Section -->
+        <section class="card">
+            <h2>💬 Start a Chat</h2>
+            <form action="/chat" method="get" class="form-block">
+                <label for="character">Character:</label>
+                <input type="text" id="character" name="character" placeholder="e.g. Harry, Hermione, Snape" required />
+                <br><br>
+                <button type="submit" class="btn-success">Start Chat</button>
+            </form>
+        </section>
+    </div>
+</body>
+</html>

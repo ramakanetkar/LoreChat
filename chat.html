@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LoreChat</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1f1c2c, #928dab);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px;
+        }
+
+        h1 {
+            color: #ffdd57;
+            margin-bottom: 20px;
+            text-shadow: 1px 1px 5px rgba(0,0,0,0.5);
+        }
+
+        #chatBox {
+            background: rgba(0,0,0,0.5);
+            border: none;
+            border-radius: 15px;
+            padding: 15px;
+            width: 650px;
+            height: 400px;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+
+        .chat-message {
+            margin: 10px 0;
+            padding: 12px 18px;
+            border-radius: 12px;
+            max-width: 75%;
+            line-height: 1.5;
+            font-size: 15px;
+            display: inline-block;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .user {
+            background: linear-gradient(135deg, #ffdd57, #ffb400);
+            color: #000;
+            align-self: flex-end;
+            float: right;
+            clear: both;
+        }
+
+        .bot {
+            background: linear-gradient(135deg, #00c6ff, #0072ff);
+            color: #fff;
+            align-self: flex-start;
+            float: left;
+            clear: both;
+        }
+
+        #chatInput {
+            margin-top: 20px;
+            width: 650px;
+            display: flex;
+            gap: 10px;
+        }
+
+        #message {
+            flex: 1;
+            padding: 12px;
+            border-radius: 10px;
+            border: none;
+            font-size: 15px;
+        }
+
+        button {
+            background: #ffdd57;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #ffb400;
+            transform: scale(1.05);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+
+    <script>
+        async function sendMessage() {
+            const msgInput = document.getElementById("message");
+            const chatBox = document.getElementById("chatBox");
+
+            const userMsg = msgInput.value.trim();
+            if (!userMsg) return;
+
+            // Add user bubble
+            chatBox.innerHTML += `<div class="chat-message user"><b>You:</b> ${userMsg}</div>`;
+            chatBox.scrollTop = chatBox.scrollHeight;
+            msgInput.value = "";
+
+            const formData = new FormData();
+            formData.append("user_input", userMsg);
+            formData.append("character", document.getElementById("characterInput").value);
+
+            const resp = await fetch("/chat", {
+                method: "POST",
+                body: formData
+            });
+
+            const html = await resp.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+
+            const updatedChat = doc.getElementById("chatBox").innerHTML;
+            document.getElementById("chatBox").innerHTML = updatedChat;
+
+            // Auto scroll to bottom
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</head>
+<body>
+    <h1>Chat with {{ character }}</h1>
+	<input type="hidden" id="characterInput" value="{{ character }}">
+
+    <div id="chatBox">
+        {% for role, message in chat_history %}
+            <div class="chat-message {{ 'user' if role == 'user' else 'bot' }}">
+                <b>{{ "You" if role == "user" else character }}:</b> {{ message }}
+            </div>
+        {% endfor %}
+    </div>
+
+    <div id="chatInput">
+        <input type="text" id="message" placeholder="Type your message..." onkeydown="if(event.key==='Enter'){sendMessage()}"/>
+        <button onclick="sendMessage()">Send</button>
+    </div>
+</body>
+</html>
