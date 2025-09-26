@@ -5,6 +5,7 @@ import pdfplumber
 from werkzeug.utils import secure_filename
 from rag_store import add_to_store, query_store
 from openai import OpenAI, AzureOpenAI
+import re
 
 # Azure AI Foundry SDK
 from azure.ai.inference import ChatCompletionsClient
@@ -101,103 +102,124 @@ def upload():
         flash("Invalid file type. Please upload .pdf or .txt")
         return redirect(url_for("index"))
 
-
-@app.route("/chat", methods=["GET", "POST"])
-def chat():
+@app.route("/chat", methods=["GET"])
+def chat_get():
     if "chat_history" not in session:
         session["chat_history"] = []
-        session["character"] = "Harry Potter"
+        session["character"] = ""
 
     character_selected = False
+    new_character = request.args.get("character", "").strip()
 
-    if request.method == "GET":
-        new_character = request.args.get("character", "").strip()
-        user_input = ""
-    
-    elif request.method == "POST":
-        user_input = request.form.get("user_input", "").strip()
-        new_character = request.form.get("character", "").strip()
+    if new_character and new_character != session.get("character", ""):
+        session["character"] = new_character
+        session["chat_history"] = []  # clear previous conversation
+        character_selected = True
 
+    return render_template(
+        "chat.html",
+        chat_history=session.get("chat_history", []),
+        character=session.get("character") or "Unknown Character"
+        )
 
-        # Update character if new one is selected
-        if new_character and new_character != session.get("character", ""):
-            session["character"] = new_character
-            session["chat_history"] = []  # clear previous conversation
-            character_selected = True
+@app.route("/chat", methods=["POST"])
+def chat_post():
+    user_input = request.form.get("user_input", "").strip()
+    new_character = request.form.get("character", "").strip()
 
-        character = session.get("character") or "Unknown Character"
+    if new_character and new_character != session.get("character", ""):
+        session["character"] = new_character
+        session["chat_history"] = []  # clear previous conversation
 
-        if user_input:
-            # Retrieve relevant context from RAG
-            context_chunks = query_store(user_input, top_k=5)
-            context_text = "\n".join(context_chunks)
+    character = session.get("character") or "Unknown Character"
 
-            # Build conversation history as plain dialogue
-            conversation_text = ""
-            for role, msg in session["chat_history"]:
-                speaker = character if role == "bot" else "You"
-                conversation_text += f"{speaker}: {msg}\n"
+    if user_input:
+        context_chunks = query_store(user_input, top_k=5)
+        context_text = "\n".join(context_chunks)
 
-            # System prompt for DeepSeek
-            system_prompt = f"""
-            You are {character}, a fictional character from the Harry Potter series.
+        conversation_text = "You: Hello\n"
+        for role, msg in session["chat_history"]:
+            speaker = character if role == "bot" else "You"
+            conversation_text += f"{speaker}: {msg}\n"
 
-            Instructions:
-            - Respond ONLY as {character} using natural spoken dialogue.
-            - NEVER include thoughts, reasoning, planning, actions, gestures, or stage directions.
-            - Do NOT describe emotions or body language; express them only through spoken words if needed.
-            - Do NOT act as an AI or assistant.
-            - Use book context if relevant, but never invent facts outside the book.
-            - If asked something outside your knowledge, respond as the character would (e.g., confused, curious, dismissive). 
-            - You may ask questions, express emotions, and react naturally as the character. - Respond directly to the user’s input, without internal commentary. 
+        system_prompt = f"""
+            You are {character}, a fictional character from the Harry Potter series.  
+
+            Your ONLY job is to speak exactly as {character} would in direct dialogue.  
+
+            Strict Rules:
+            - Respond ONLY with spoken dialogue.  
+            - Do NOT include thoughts, reasoning, narration, or description.  
+            - Do NOT write stage directions, body language,  internal monologue, explanations, or commentary.  
+            - Do NOT explain what you are doing or why.  
+            - Do NOT act as an AI or assistant.  
+            - DO NOT mention the rules or that you are following instructions.
+            - Do NOT invent new facts outside the Harry Potter books.  
+            - If you truly would not know, simply say so in character.
+
+            If the user asks something outside {character}'s knowledge, respond as {character} would :
+                - Show confusion, irritation, or dismissiveness.
+                - You may say things like "I don’t know what you’re talking about," or "That is nonsense," or stay silent.
+                - Never break character or explain why you don’t know.
+            
+            Fallback:
+                - If you have no relevant knowledge from the books, still reply in short, in-character spoken words (not narration).
+                - Never output nothing; always give a natural, character-like response.
+
+            The user is a regular person, not a Harry Potter character.  
+
+            Context to stay consistent:
             - Previous conversation:
             {conversation_text}
+
             - Current user message:
             {user_input}
+
             - Book context:
             {context_text}
 
             Important:
-            - Output ONLY the words {character} would say aloud.
-            - Do not include any commentary, internal monologue, or descriptive text.
+            - Your output must be *only* what {character} says out loud.  
+            - No narration. No explanations. No tags. No formatting. No commentary.  
+            - If this is the first message, do NOT introduce yourself or explain your role — just respond in character with dialogue.  
+
+            Final Rule: If your output contains anything other than spoken dialogue, you have failed the task.  
             """
 
-            # Call DeepSeek
-            if USE_DEEPSEEK:
-                try:
-                    response = deepseek_client.chat.completions.create(
-                        model=DEPLOYMENT_NAME,
-                        messages=[{"role": "user", "content": system_prompt}],
-                        temperature=0.7,
-                    )
-                    bot_reply = response.choices[0].message.content.strip()
-                    print("🤖 Raw bot reply:", bot_reply)
+        if USE_DEEPSEEK:
+            try:
+                response = deepseek_client.chat.completions.create(
+                    model=DEPLOYMENT_NAME,
+                    messages=[{"role": "user", "content": system_prompt}],
+                    temperature=0.7,
+                )
+                bot_reply = response.choices[0].message.content.strip()
+                if "<think>" in bot_reply and "</think>" in bot_reply:
+                    bot_reply = re.sub(r"<think>.*?</think>", "", bot_reply, flags=re.DOTALL).strip()
 
-                    # Extract only text after </think> if present
-                    if "</think>" in bot_reply:
-                        bot_reply = bot_reply.split("</think>", 1)[1].strip()
+                # Optional: keep only the first quoted dialogue if the model still adds fluff
+                if '"' in bot_reply:
+                    first_quote = bot_reply.find('"')
+                    last_quote = bot_reply.rfind('"')
+                    if last_quote > first_quote:
+                        bot_reply = bot_reply[first_quote+1:last_quote]  # text between the quotes
+            except Exception as e:
+                print("⚠️ DeepSeek API error:", e)
+                bot_reply = f"(Error using DeepSeek. Context: {context_text[:200]}...)"
+        else:
+            bot_reply = f"(Simulated reply based on context: {context_text[:200]}...)"
 
-                    print("✅ Final bot reply:", bot_reply)
-                except Exception as e:
-                    print("⚠️ DeepSeek API error:", e)
-                    bot_reply = f"(Error using DeepSeek. Context: {context_text[:200]}...)"
-            else:
-                bot_reply = f"(Simulated reply based on context: {context_text[:200]}...)"
-            
-            print("🧙‍♂️ Current character:", session.get("character"))
+        chat_history = session.get("chat_history", [])
+        chat_history.append(("user", user_input))
+        chat_history.append(("bot", bot_reply))
+        session["chat_history"] = chat_history[-5:]
 
-
-            # Save conversation
-            chat_history = session.get("chat_history", [])
-            chat_history.append(("user", user_input))
-            chat_history.append(("bot", bot_reply))
-            session["chat_history"] = chat_history[-5:]
-
-    return render_template( 
-    "chat.html", 
-    chat_history=session.get("chat_history", []), 
-    character= session.get("character") or "Unknown Character"
+    return render_template(
+        "chat.html",
+        chat_history=session.get("chat_history", []),
+        character=session.get("character") or "Unknown Character"
     )
+
 
 if __name__ == "__main__":
     app.run(debug=True)
